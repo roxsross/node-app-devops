@@ -1,4 +1,4 @@
-#FROM <imagen> especifica la imagen a utilizar como base###
+#FROM <imagen> especifica la imagen a utilizar como base######
 FROM node:erbium-alpine
 
 # Config
