@@ -15,6 +15,7 @@ pipeline {
                 }
             }
             steps {
+                echo "Init"
                 sh 'npm install'
             }
         }
