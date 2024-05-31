@@ -1,7 +1,7 @@
 name: Deploy main to Fly
 on:
   push:
-    branches: [ main ]
+    branches: [ fly ]
 
 env:
   FLY_API_TOKEN: ${{ secrets.FLY_TOKEN }}
