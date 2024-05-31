@@ -22,6 +22,6 @@ RUN npm install --production
 EXPOSE 3000
 #Added Date command before, so Cloudwatch identify the logs for syncup
 #CMD <comando> (requerido) ejecuta el comando en el momento de ejecución del contenedor.
-CMD ["sh", "-c", "date ; npm start "]
+CMD ["npm", "start"]
 
 #byRoxsRoss
