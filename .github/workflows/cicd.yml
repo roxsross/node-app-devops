@@ -6,7 +6,7 @@ on:
     branches: [ master ]
 
 env:
-  REGISTRY: roxsross12
+  REGISTRY: docker.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
