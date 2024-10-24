@@ -6,7 +6,7 @@ on:
     branches: [ master ]
 
 env:
-  REGISTRY: docker.io
+  REGISTRY: roxsross12
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
@@ -35,6 +35,9 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+      - uses: azure/setup-kubectl@v4
+        with:
+           version: '1.31' 
+        id: install
