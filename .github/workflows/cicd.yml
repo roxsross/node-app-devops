@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: roxsross12
-  IMAGE_NAME: ${{ github.repository }}
+  REPOSITORY: demo-github
 
 jobs:
   build-and-deploy:
@@ -29,8 +29,8 @@ jobs:
       - name: Build and push
         run: |
           VERSION=`jq -r '.version' ./package.json`
-          docker build -t $REGISTRY/$IMAGE_NAME:$VERSION .
-          docker push $REGISTRY/$IMAGE_NAME:$VERSION
+          docker build -t $REGISTRY/$REPOSITORY:$VERSION .
+          docker push $REGISTRY/$REPOSITORY:$VERSION
       - uses: azure/setup-kubectl@v4
         with:
            version: '1.31' 
