@@ -35,3 +35,7 @@ jobs:
         with:
            version: 'latest' 
         id: install
+      - name: Verify cluster
+        run: |
+          kubectl get nodes -A
+          kubectl get pod -A
