@@ -3,9 +3,9 @@ FROM node:erbium-alpine
 
 # Config
 #Puede extraer el valor de una variable de entorno usando el ENV 
-ENV NODE_ENV uat
+ENV NODE_ENV=uat
 
-ENV PORT 3000
+ENV PORT=3000
 
 # Create app directory
 #WORKDIR <ruta> especifica la carpeta de trabajo dentro del contenedor.
