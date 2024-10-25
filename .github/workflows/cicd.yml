@@ -82,6 +82,14 @@ jobs:
           echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
           echo "COMMIT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
 
+      - name: Send Start Notification
+        if: success()
+        env:
+          BOT_URL: "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage"
+        run: |
+          export BOT_URL="${BOT_URL}"
+          bash scripts/notify.sh "start" "${{ env.VERSION }}" "${{ env.COMMIT_SHA }}" "${{ env.BUILD_DATE }}"
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -101,14 +109,6 @@ jobs:
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-
-      - name: Send Start Notification
-        if: success()
-        env:
-          BOT_URL: "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage"
-        run: |
-          export BOT_URL="${BOT_URL}"
-          bash scripts/notify.sh "start" "${{ env.VERSION }}" "${{ env.COMMIT_SHA }}" "${{ env.BUILD_DATE }}"
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
