@@ -11,31 +11,43 @@ env:
 
 jobs:
   build-and-deploy:
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # - name: Login to Docker Hub
-      #   uses: docker/login-action@v3
-      #   with:
-      #     username: ${{ secrets.DOCKER_USERNAME }}
-      #     password: ${{ secrets.DOCKER_PASSWORD }}   
-      # - name: Set up QEMU
-      #   uses: docker/setup-qemu-action@v3
-      # -
-      #   name: Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v3
-      # - name: Build and push
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # - name: Build and push Docker image
       #   run: |
-      #     VERSION=`jq -r '.version' ./package.json`
+      #     VERSION=$(jq -r '.version' ./package.json)
       #     docker build -t $REGISTRY/$REPOSITORY:$VERSION .
       #     docker push $REGISTRY/$REPOSITORY:$VERSION
-      - uses: azure/setup-kubectl@v4
+      - name: Extract version from package.json
+        id: version
+        run: echo "VERSION=$(jq -r '.version' ./package.json)" >> $GITHUB_ENV
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
         with:
-           version: 'latest' 
-        id: install
-      - name: Verify cluster
+          version: 'latest'
+
+      - name: Replace image version in Kubernetes deployment
         run: |
-          kubectl get nodes -A
-          kubectl get pod -A
+          sed -i "s|image: ${REGISTRY}/${REPOSITORY}:.*|image: ${REGISTRY}/${REPOSITORY}:${{ env.VERSION }}|g" k8s/deployment.yaml          
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
