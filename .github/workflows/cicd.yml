@@ -55,6 +55,12 @@ jobs:
           key: ${{ runner.os }}-buildx-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-
+      - name: Setup notification script
+        run: |
+            mkdir -p scripts
+            cp .github/scripts/notify.sh scripts/
+            chmod +x scripts/notify.sh
+            ls -la scripts/notify.sh
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -96,6 +102,7 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
+
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
         with:
@@ -109,92 +116,27 @@ jobs:
         run: |
           sed -i "s|image: ${REGISTRY}/${REPOSITORY}:.*|image: ${REGISTRY}/${REPOSITORY}:${{ env.VERSION }}|g" k8s/deployment.yaml          
 
+      - name: Make notify script executable
+        run: chmod +x ./scripts/notify.sh
+
+      - name: Send Start Notification
+        if: success()
+        run: |
+          source ./scripts/notify.sh
+          send_telegram_notification "start" "${{ env.VERSION }}" "${{ env.COMMIT_SHA }}" "${{ env.BUILD_DATE }}"
+
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -f k8s/deployment.yaml --validate=false
 
-      - name: Verify deployment
-        run: |
-          kubectl rollout status deployment/demo-app -n default --timeout=180s
 
-      - name: Send Telegram Notification - Start
+      - name: Send Success Notification
         if: success()
         run: |
-          START_TIME=$(date +"%Y-%m-%d %H:%M:%S")
-          MESSAGE="🚀 *Nuevo Despliegue Iniciado*
-          
-          📦 *Proyecto:* ${GITHUB_REPOSITORY}
-          🔄 *Branch:* ${GITHUB_REF#refs/heads/}
-          🏷️ *Version:* ${{ env.VERSION }}
-          🔨 *Commit:* \`${COMMIT_SHA}\`
-          ⏰ *Inicio:* ${START_TIME}
-          👨‍💻 *Autor:* ${GITHUB_ACTOR}
-          
-          📝 *Etapas Completadas:*
-          ✅ Code Quality Check
-          ✅ Unit Tests
-          ✅ Security Audit
-          ✅ SonarCloud Analysis
-          
-          🔗 *Commit:* ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
-          
-          ⚡️ *Estado:* Deployment en progreso..."
-          
-          curl -s -X POST ${{ secrets.BOT_URL }} \
-          -d chat_id=${{ env.TELEGRAM_CHAT_ID }} \
-          -d text="${MESSAGE}" \
-          -d parse_mode=Markdown
-
-      - name: Send Telegram Notification - Success
-        if: success()
-        run: |
-          END_TIME=$(date +"%Y-%m-%d %H:%M:%S")
-          MESSAGE="✅ *Despliegue Exitoso*
-          
-          📦 *Proyecto:* ${GITHUB_REPOSITORY}
-          🔄 *Branch:* ${GITHUB_REF#refs/heads/}
-          🏷️ *Version:* ${{ env.VERSION }}
-          🔨 *Commit:* \`${COMMIT_SHA}\`
-          ⏰ *Fin:* ${END_TIME}
-          👨‍💻 *Autor:* ${GITHUB_ACTOR}
-          
-          📝 *Detalles:*
-          🐳 *Imagen:* \`${REGISTRY}/${REPOSITORY}:${{ env.VERSION }}\`
-          📅 *Build Date:* ${BUILD_DATE}
-          
-          🔗 *Commit:* ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
-          
-          🎉 *Estado:* ¡Deployment completado con éxito!"
-          
-          curl -s -X POST ${{ secrets.BOT_URL }} \
-          -d chat_id=${{ env.TELEGRAM_CHAT_ID }} \
-          -d text="${MESSAGE}" \
-          -d parse_mode=Markdown
-
-      - name: Send Telegram Notification - Failure
+            source ./scripts/notify.sh
+            send_telegram_notification "success" "${{ env.VERSION }}" "${{ env.COMMIT_SHA }}" "${{ env.BUILD_DATE }}"
+      - name: Send Failure Notification
         if: failure()
         run: |
-          MESSAGE="❌ *Despliegue Fallido*
-          
-          📦 *Proyecto:* ${GITHUB_REPOSITORY}
-          🔄 *Branch:* ${GITHUB_REF#refs/heads/}
-          🏷️ *Version:* ${{ env.VERSION }}
-          🔨 *Commit:* \`${COMMIT_SHA}\`
-          👨‍💻 *Autor:* ${GITHUB_ACTOR}
-          
-          ⚠️ *Posibles causas:*
-          - Fallos en las pruebas unitarias
-          - Problemas de seguridad detectados
-          - Error en el build de Docker
-          - Error en el despliegue a Kubernetes
-          
-          🔗 *Commit:* ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
-          
-          🚨 *Estado:* El deployment ha fallado
-          
-          Por favor, revisa los logs para más detalles."
-          
-          curl -s -X POST ${{ secrets.BOT_URL }} \
-          -d chat_id=${{ env.TELEGRAM_CHAT_ID }} \
-          -d text="${MESSAGE}" \
-          -d parse_mode=Markdown
+            source ./scripts/notify.sh
+            send_telegram_notification "failure" "${{ env.VERSION }}" "${{ env.COMMIT_SHA }}" "${{ env.BUILD_DATE }}"
