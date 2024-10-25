@@ -8,11 +8,10 @@ on:
 env:
   REGISTRY: roxsross12
   REPOSITORY: demo-github
-  RUNNER: arc-runner-set
 
 jobs:
   build-and-deploy:
-    runs-on: $RUNNER
+    runs-on: arc-runner-set
 
     steps:
       - name: Checkout repository
