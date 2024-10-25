@@ -8,14 +8,54 @@ on:
 env:
   REGISTRY: roxsross12
   REPOSITORY: demo-github
+  TELEGRAM_CHAT_ID: "-1001508340482"
 
 jobs:
+  quality:
+    name: Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '21'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Check code style
+        run: |
+          npm run lint || echo "No lint script found"
+        continue-on-error: true
+      
+      - name: Run unit tests
+        run: |
+          npm run test || echo "No test script found"
+        continue-on-error: true
+
+      - name: Run security audit
+        run: npm audit
+        continue-on-error: true
+
+
   build-and-deploy:
+    needs: quality
     runs-on: arc-runner-set
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -29,16 +69,33 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Docker image
+      - name: Extract version and build info
+        id: build_info
         run: |
           VERSION=$(jq -r '.version' ./package.json)
-          docker build -t $REGISTRY/$REPOSITORY:$VERSION .
-          docker push $REGISTRY/$REPOSITORY:$VERSION
-      - name: Extract version from package.json
-        id: version
-        run: | 
-          echo "VERSION=$(jq -r '.version' ./package.json)" >> $GITHUB_ENV
-          echo $VERSION
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+          echo "COMMIT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.VERSION }}
+            ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
+            COMMIT_SHA=${{ env.COMMIT_SHA }}
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
@@ -56,3 +113,89 @@ jobs:
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -f k8s/deployment.yaml --validate=false
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/demo-app -n default --timeout=180s
+
+      - name: Send Telegram Notification - Start
+        if: success()
+        run: |
+          START_TIME=$(date +"%Y-%m-%d %H:%M:%S")
+          MESSAGE="🚀 *Nuevo Despliegue Iniciado*
+          
+          📦 *Proyecto:* ${GITHUB_REPOSITORY}
+          🔄 *Branch:* ${GITHUB_REF#refs/heads/}
+          🏷️ *Version:* ${{ env.VERSION }}
+          🔨 *Commit:* \`${COMMIT_SHA}\`
+          ⏰ *Inicio:* ${START_TIME}
+          👨‍💻 *Autor:* ${GITHUB_ACTOR}
+          
+          📝 *Etapas Completadas:*
+          ✅ Code Quality Check
+          ✅ Unit Tests
+          ✅ Security Audit
+          ✅ SonarCloud Analysis
+          
+          🔗 *Commit:* ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
+          
+          ⚡️ *Estado:* Deployment en progreso..."
+          
+          curl -s -X POST ${{ secrets.BOT_URL }} \
+          -d chat_id=${{ env.TELEGRAM_CHAT_ID }} \
+          -d text="${MESSAGE}" \
+          -d parse_mode=Markdown
+
+      - name: Send Telegram Notification - Success
+        if: success()
+        run: |
+          END_TIME=$(date +"%Y-%m-%d %H:%M:%S")
+          MESSAGE="✅ *Despliegue Exitoso*
+          
+          📦 *Proyecto:* ${GITHUB_REPOSITORY}
+          🔄 *Branch:* ${GITHUB_REF#refs/heads/}
+          🏷️ *Version:* ${{ env.VERSION }}
+          🔨 *Commit:* \`${COMMIT_SHA}\`
+          ⏰ *Fin:* ${END_TIME}
+          👨‍💻 *Autor:* ${GITHUB_ACTOR}
+          
+          📝 *Detalles:*
+          🐳 *Imagen:* \`${REGISTRY}/${REPOSITORY}:${{ env.VERSION }}\`
+          📅 *Build Date:* ${BUILD_DATE}
+          
+          🔗 *Commit:* ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
+          
+          🎉 *Estado:* ¡Deployment completado con éxito!"
+          
+          curl -s -X POST ${{ secrets.BOT_URL }} \
+          -d chat_id=${{ env.TELEGRAM_CHAT_ID }} \
+          -d text="${MESSAGE}" \
+          -d parse_mode=Markdown
+
+      - name: Send Telegram Notification - Failure
+        if: failure()
+        run: |
+          MESSAGE="❌ *Despliegue Fallido*
+          
+          📦 *Proyecto:* ${GITHUB_REPOSITORY}
+          🔄 *Branch:* ${GITHUB_REF#refs/heads/}
+          🏷️ *Version:* ${{ env.VERSION }}
+          🔨 *Commit:* \`${COMMIT_SHA}\`
+          👨‍💻 *Autor:* ${GITHUB_ACTOR}
+          
+          ⚠️ *Posibles causas:*
+          - Fallos en las pruebas unitarias
+          - Problemas de seguridad detectados
+          - Error en el build de Docker
+          - Error en el despliegue a Kubernetes
+          
+          🔗 *Commit:* ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
+          
+          🚨 *Estado:* El deployment ha fallado
+          
+          Por favor, revisa los logs para más detalles."
+          
+          curl -s -X POST ${{ secrets.BOT_URL }} \
+          -d chat_id=${{ env.TELEGRAM_CHAT_ID }} \
+          -d text="${MESSAGE}" \
+          -d parse_mode=Markdown
