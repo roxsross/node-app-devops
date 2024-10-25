@@ -17,17 +17,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+      # - name: Login to Docker Hub
+      #   uses: docker/login-action@v3
+      #   with:
+      #     username: ${{ secrets.DOCKER_USERNAME }}
+      #     password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      # - name: Set up QEMU
+      #   uses: docker/setup-qemu-action@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      # - name: Set up Docker Buildx
+      #   uses: docker/setup-buildx-action@v3
 
       # - name: Build and push Docker image
       #   run: |
@@ -36,7 +36,9 @@ jobs:
       #     docker push $REGISTRY/$REPOSITORY:$VERSION
       - name: Extract version from package.json
         id: version
-        run: echo "VERSION=$(jq -r '.version' ./package.json)" >> $GITHUB_ENV
+        run: | 
+          echo "VERSION=$(jq -r '.version' ./package.json)" >> $GITHUB_ENV
+          echo $GITHUB_ENV
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
@@ -47,10 +49,10 @@ jobs:
         run: |
           kubectl get nodes -A
           
-      - name: Replace image version in Kubernetes deployment
-        run: |
-          sed -i "s|image: ${REGISTRY}/${REPOSITORY}:.*|image: ${REGISTRY}/${REPOSITORY}:${{ env.VERSION }}|g" k8s/deployment.yaml          
+      # - name: Replace image version in Kubernetes deployment
+      #   run: |
+      #     sed -i "s|image: ${REGISTRY}/${REPOSITORY}:.*|image: ${REGISTRY}/${REPOSITORY}:${{ env.VERSION }}|g" k8s/deployment.yaml          
 
-      - name: Deploy to Kubernetes
-        run: |
-          kubectl apply -f k8s/deployment.yaml --validate=false
+      # - name: Deploy to Kubernetes
+      #   run: |
+      #     kubectl apply -f k8s/deployment.yaml --validate=false
