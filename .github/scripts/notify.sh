@@ -1,11 +1,42 @@
 #!/bin/bash
+set -e
 
-# notify.sh
+# Debug - Mostrar variables (comentar en producción)
+echo "Checking environment variables..."
+echo "BOT_URL: ${BOT_URL:0:20}..." # Solo mostrar los primeros 20 caracteres por seguridad
+echo "TELEGRAM_CHAT_ID: $TELEGRAM_CHAT_ID"
+echo "GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
+echo "GITHUB_REF: $GITHUB_REF"
+echo "GITHUB_ACTOR: $GITHUB_ACTOR"
+
+# Verificar variables requeridas
+if [ -z "$BOT_URL" ]; then
+    echo "Error: BOT_URL no está definida"
+    exit 1
+fi
+
+if [ -z "$TELEGRAM_CHAT_ID" ]; then
+    echo "Error: TELEGRAM_CHAT_ID no está definida"
+    exit 1
+fi
+
+# Función principal de notificación
 send_telegram_notification() {
     local status=$1
     local version=$2
     local commit_sha=$3
     local build_date=$4
+
+    echo "Preparing notification for status: $status"
+    echo "Version: $version"
+    echo "Commit SHA: $commit_sha"
+    echo "Build Date: $build_date"
+
+    if [ -z "$status" ] || [ -z "$version" ] || [ -z "$commit_sha" ]; then
+        echo "Error: Faltan argumentos requeridos"
+        echo "Uso: $0 <status> <version> <commit_sha> <build_date>"
+        exit 1
+    fi
 
     case $status in
         "start")
@@ -24,8 +55,6 @@ send_telegram_notification() {
             ✅ Security Audit
             ✅ SonarCloud Analysis
             
-            🔗 *Commit:* ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
-            
             ⚡️ *Estado:* Deployment en progreso..."
             ;;
             
@@ -42,8 +71,6 @@ send_telegram_notification() {
             📝 *Detalles:*
             🐳 *Imagen:* \`${REGISTRY}/${REPOSITORY}:${version}\`
             📅 *Build Date:* ${build_date}
-            
-            🔗 *Commit:* ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
             
             🎉 *Estado:* ¡Deployment completado con éxito!"
             ;;
@@ -63,16 +90,32 @@ send_telegram_notification() {
             - Error en el build de Docker
             - Error en el despliegue a Kubernetes
             
-            🔗 *Commit:* ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
-            
             🚨 *Estado:* El deployment ha fallado
             
             Por favor, revisa los logs para más detalles."
             ;;
+        *)
+            echo "Error: Estado no válido. Debe ser 'start', 'success' o 'failure'"
+            exit 1
+            ;;
     esac
 
-    curl -s -X POST ${BOT_URL} \
-        -d chat_id=${TELEGRAM_CHAT_ID} \
+    echo "Sending notification to Telegram..."
+    
+    # Debug - Mostrar el comando curl (sin el mensaje completo)
+    echo "curl -s -X POST ${BOT_URL} -d chat_id=${TELEGRAM_CHAT_ID} [...mensaje omitido...] -d parse_mode=Markdown"
+
+    # Enviar la notificación
+    curl -s -X POST "${BOT_URL}" \
+        -d chat_id="${TELEGRAM_CHAT_ID}" \
         -d text="${MESSAGE}" \
-        -d parse_mode=Markdown
+        -d parse_mode=Markdown || {
+        echo "Error al enviar la notificación a Telegram"
+        exit 1
+    }
+
+    echo "Notificación enviada correctamente"
 }
+
+# Ejecutar la función con los argumentos recibidos
+send_telegram_notification "$@"
